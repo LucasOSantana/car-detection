@@ -1,1 +1,6 @@
 /dataset
+/dataset.zip
+/dataset_marcas.zip
+*.keras
+__pycache__/
+/checkpoints
