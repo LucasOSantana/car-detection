@@ -36,7 +36,6 @@ from PIL import Image, ImageOps
 from sklearn.metrics import classification_report, confusion_matrix
 from tensorflow.keras import layers, models
 
-# Configurações padrão de diretório e hiperparâmetros
 DATASET_DIR = Path("dataset") / "marcas"
 TRAIN_DIR = DATASET_DIR / "train"
 VAL_DIR = DATASET_DIR / "val"
@@ -52,16 +51,15 @@ BATCH_SIZE = 64
 DROPOUT_RATES = [0.0, 0.2, 0.5]
 SEED = 42
 
-# Treino em duas fases
 LR_FASE_CABECA = 1e-3
 LR_FASE_FINE_TUNING = 1e-5
 FRACAO_DESCONGELADA = 0.3  # Fração final das camadas do backbone liberada no fine-tuning
 
-# Fundo branco: as imagens do DVM-CAR têm o fundo removido (branco)
+# As imagens do DVM-CAR têm o fundo removido (branco)
 COR_FUNDO = 255.0
 
 BACKBONES = {
-    # nome: (construtor, função de pré-processamento ou None se já embutida no modelo)
+    # nome: (construtor, pré-processamento ou None quando já embutido no backbone)
     "efficientnetv2b0": (tf.keras.applications.EfficientNetV2B0, None),
     "efficientnetv2s": (tf.keras.applications.EfficientNetV2S, None),
     "convnext_tiny": (tf.keras.applications.ConvNeXtTiny, None),
@@ -74,7 +72,6 @@ BACKBONE_PADRAO = "efficientnetv2b0"
 
 
 def carregar_datasets(img_size: tuple[int, int] = IMG_SIZE, batch_size: int = BATCH_SIZE):
-    """Carrega os conjuntos de treino, validação e teste com todas as marcas."""
     if not TRAIN_DIR.exists():
         raise FileNotFoundError(
             f"Diretório de treino não encontrado em: {TRAIN_DIR.resolve()}"
@@ -101,11 +98,10 @@ def carregar_datasets(img_size: tuple[int, int] = IMG_SIZE, batch_size: int = BA
     class_names = train_ds.class_names
     print(f"[INFO] Total de marcas (classes) detectadas ({len(class_names)}): {class_names}")
 
-    # Salva os nomes das classes para uso posterior na predição de imagens avulsas
     with open(CLASSES_PATH, "w", encoding="utf-8") as f:
         json.dump(class_names, f, ensure_ascii=False, indent=2)
 
-    # Cache em uint8 (~4x menos RAM que float32), shuffle por imagem a cada época e prefetch
+    # Cache em uint8: ~4x menos RAM que float32
     autotune = tf.data.AUTOTUNE
 
     def para_uint8(img, rotulo):
@@ -130,16 +126,11 @@ def construir_modelo(
     usar_transfer_learning: bool = True,
     backbone: str = BACKBONE_PADRAO,
 ) -> tf.keras.Model:
-    """
-    Constrói o modelo de classificação de marcas de automóveis.
-    Destaca a variação da camada de Dropout logo após a camada Densa (Dense).
-    O modelo é retornado sem compilar: a compilação acontece em cada fase do treino.
-    """
+    """Retorna o modelo sem compilar: a compilação acontece em cada fase do treino."""
     inputs = layers.Input(shape=(IMG_SIZE[0], IMG_SIZE[1], 3), name="imagem_entrada")
 
-    # Data Augmentation: ângulo, distância e enquadramento (flip, rotação, zoom, translação)
-    # e brilho/contraste para simular reflexos e iluminação de rua.
-    # Áreas novas criadas pelas transformações são preenchidas com branco, como o fundo do dataset.
+    # Simula variações de ângulo, distância, enquadramento, reflexos e iluminação.
+    # Áreas criadas pelas transformações são preenchidas com branco, como o fundo do dataset.
     x = layers.RandomFlip("horizontal", name="aug_flip")(inputs)
     x = layers.RandomRotation(0.08, fill_mode="constant", fill_value=COR_FUNDO, name="aug_rotation")(x)
     x = layers.RandomZoom(0.15, fill_mode="constant", fill_value=COR_FUNDO, name="aug_zoom")(x)
@@ -158,12 +149,11 @@ def construir_modelo(
             weights="imagenet",
         )
         base_model.name = "backbone"
-        base_model.trainable = False  # Fase 1: pesos convolucionais congelados
+        base_model.trainable = False
         # training=False mantém as BatchNorm em modo de inferência também no fine-tuning
         x = base_model(x, training=False)
         x = layers.GlobalAveragePooling2D(name="global_avg_pool")(x)
     else:
-        # Arquitetura CNN Convolucional clássica (treinada do zero)
         x = layers.Rescaling(1.0 / 255.0, name="normalizacao")(x)
         x = layers.Conv2D(32, (3, 3), activation="relu", padding="same")(x)
         x = layers.MaxPooling2D((2, 2))(x)
@@ -174,13 +164,11 @@ def construir_modelo(
         x = layers.Conv2D(256, (3, 3), activation="relu", padding="same")(x)
         x = layers.GlobalAveragePooling2D()(x)
 
-    # =========================================================================
-    # CAMADA DENSA + EXPERIMENTO DE DROPOUT (0.0, 0.2, 0.5)
-    # =========================================================================
+    # Experimento do projeto: Dropout variável (0.0, 0.2, 0.5) após a camada densa
     x = layers.Dense(256, activation="relu", name="camada_densa")(x)
     x = layers.Dropout(rate=dropout_rate, name=f"dropout_{str(dropout_rate).replace('.', '_')}")(x)
 
-    # Saída em float32 para estabilidade numérica com mixed precision
+    # float32 para estabilidade numérica com mixed precision
     outputs = layers.Dense(num_classes, activation="softmax", dtype="float32", name="saida_marcas")(x)
 
     return models.Model(
@@ -223,11 +211,6 @@ def concatenar_historicos(fase1: dict, fase2: dict) -> dict:
 
 
 def plotar_curvas_loss_dropout(historicos: dict[float, dict], output_dir: Path):
-    """
-    Plota as curvas de perda (Loss de Treino e Validação) e Acurácia para cada
-    taxa de Dropout (0.0, 0.2, 0.5), permitindo visualizar o Overfitting.
-    A linha vertical pontilhada marca o início do fine-tuning de cada experimento.
-    """
     output_dir.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
@@ -281,11 +264,6 @@ def avaliar_e_gerar_matriz_confusao(
     output_dir: Path,
     descricao_modelo: str = "",
 ):
-    """
-    Avalia o modelo no conjunto de teste (top-1 e top-3), plota a Matriz de Confusão
-    das marcas e salva exemplos de imagens classificadas incorretamente para análise
-    de distância da foto e reflexos na lataria.
-    """
     output_dir.mkdir(parents=True, exist_ok=True)
     print("\n[INFO] Avaliando modelo no conjunto de teste...")
 
@@ -305,7 +283,6 @@ def avaliar_e_gerar_matriz_confusao(
         y_pred.extend(pred_classes)
         acertos_top3 += int(np.sum(np.any(top3 == rotulos[:, None], axis=1)))
 
-        # Coleta até 12 exemplos de erros para inspeção visual (distância / reflexos)
         if len(imagens_erro) < 12:
             for img, real_idx, pred_idx, conf in zip(
                 batch_imgs.numpy(), rotulos, pred_classes, pred_confs
@@ -326,7 +303,6 @@ def avaliar_e_gerar_matriz_confusao(
     acc_top3 = acertos_top3 / len(y_true)
     print(f"[RESULTADO TESTE] Top-1: {acc_top1:.4f} | Top-3: {acc_top3:.4f} ({len(y_true)} imagens)")
 
-    # Relatório de métricas por marca
     relatorio = classification_report(
         y_true, y_pred, target_names=class_names, digits=4, zero_division=0
     )
@@ -341,7 +317,7 @@ def avaliar_e_gerar_matriz_confusao(
         f.write(relatorio)
     print(f"[INFO] Relatório de classificação salvo em: {caminho_relatorio.resolve()}")
 
-    # Matriz de Confusão (N x N), normalizada por linha: % de cada marca real
+    # Normalizada por linha: % das imagens de cada marca real
     cm = confusion_matrix(y_true, y_pred, labels=range(len(class_names)))
     cm_pct = cm / np.maximum(cm.sum(axis=1, keepdims=True), 1) * 100
     fig, ax = plt.subplots(figsize=(13, 11))
@@ -379,7 +355,6 @@ def avaliar_e_gerar_matriz_confusao(
     plt.close(fig)
     print(f"[INFO] Matriz de confusão salva em: {caminho_cm.resolve()}")
 
-    # Painel de análise de erros (foco em distância da foto e reflexos na lataria)
     if imagens_erro:
         cols = 4
         rows = int(np.ceil(len(imagens_erro) / cols))
@@ -421,10 +396,7 @@ def treinar_experimento(
     backbone: str,
     caminho_checkpoint: Path,
 ) -> dict:
-    """
-    Treina um experimento de Dropout e salva o melhor modelo (menor val_loss entre
-    todas as épocas das duas fases) em `caminho_checkpoint`. Retorna o histórico.
-    """
+    """Salva em `caminho_checkpoint` a época de menor val_loss entre as duas fases."""
     tf.keras.utils.set_random_seed(SEED)  # Mesma inicialização para comparação justa
     model = construir_modelo(
         num_classes=num_classes,
@@ -479,9 +451,6 @@ def executar_experimentos_treinamento(
     checkpoint_dir: Path = CHECKPOINT_DIR,
 ):
     """
-    Executa os 3 experimentos variando o Dropout na camada densa (0.0, 0.2 e 0.5),
-    compara as curvas de perda (Loss) e salva o melhor modelo para inferência.
-
     Cada experimento concluído fica salvo em `checkpoint_dir` (modelo + histórico).
     Se o treino for interrompido (ex.: Colab desconectou), rodar de novo pula os
     experimentos já concluídos.
@@ -521,7 +490,6 @@ def executar_experimentos_treinamento(
             json.dump(historicos[rate], f, indent=2)
         tf.keras.backend.clear_session()
 
-    # Salva os gráficos comparativos de Loss (Dropout 0.0 vs 0.2 vs 0.5)
     plotar_curvas_loss_dropout(historicos, OUTPUT_DIR)
 
     # O melhor experimento é o de menor val_loss; o checkpoint guarda a sua melhor época
@@ -547,14 +515,20 @@ def carregar_modelo_treinado() -> tuple[tf.keras.Model, list[str]]:
     with open(CLASSES_PATH, "r", encoding="utf-8") as f:
         class_names: list[str] = json.load(f)
 
-    return tf.keras.models.load_model(MODEL_PATH), class_names
+    model = tf.keras.models.load_model(MODEL_PATH)
+    num_saidas = model.output_shape[-1]
+    if num_saidas != len(class_names):
+        raise ValueError(
+            f"O modelo ({MODEL_PATH}) tem {num_saidas} classes, mas {CLASSES_PATH} tem {len(class_names)}.\n"
+            "Os dois arquivos vieram de treinos diferentes: use o modelo e o class_names.json do mesmo treino."
+        )
+    return model, class_names
 
 
 def preparar_imagem(img_path: Path) -> np.ndarray:
     """
-    Prepara uma foto para o modelo do mesmo jeito que as imagens de treino:
-    corrige a rotação do celular (EXIF) e completa a foto até ficar quadrada com
-    fundo branco, sem esticar e sem cortar as laterais do carro.
+    Corrige a rotação do celular (EXIF) e completa a foto até ficar quadrada com
+    fundo branco, como as imagens do dataset, sem esticar nem cortar o carro.
     """
     with Image.open(img_path) as img:
         img = ImageOps.exif_transpose(img).convert("RGB")
@@ -563,17 +537,13 @@ def preparar_imagem(img_path: Path) -> np.ndarray:
 
 
 def classificar(model: tf.keras.Model, class_names: list[str], img_path: Path) -> list[tuple[str, float]]:
-    """Retorna as marcas ordenadas da mais para a menos provável, com a probabilidade."""
+    """Retorna (marca, probabilidade) da mais para a menos provável."""
     probabilidades = model.predict(preparar_imagem(img_path)[None, ...], verbose=0)[0]
     indices_ordenados = np.argsort(probabilidades)[::-1]
     return [(class_names[int(i)], float(probabilidades[int(i)])) for i in indices_ordenados]
 
 
 def prever_imagem(caminho_imagem: str, top_k: int = 3) -> str:
-    """
-    Recebe o caminho de uma imagem de veículo/emblema, carrega o modelo treinado
-    e retorna o rótulo da marca identificada.
-    """
     img_path = Path(caminho_imagem)
     if not img_path.exists():
         raise FileNotFoundError(f"Imagem não encontrada: {img_path.resolve()}")
@@ -596,9 +566,6 @@ def prever_imagem(caminho_imagem: str, top_k: int = 3) -> str:
 
 def prever_pasta(caminho_pasta: str, top_k: int = 3) -> Path:
     """
-    Classifica todas as imagens de uma pasta (ex.: as 10 fotos próprias) e salva
-    uma tabela CSV em `resultados_experimentos/fotos_proprias.csv`.
-
     Se o nome do arquivo começar com o nome da marca (ex.: `Volkswagen_1.jpg`),
     a coluna "real" e o acerto são preenchidos automaticamente. A coluna
     "observacao" fica em branco para anotar distância, reflexos etc.
@@ -693,7 +660,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Se o usuário passar --image ou --pasta, executa diretamente a inferência
     if args.image:
         rotulo = prever_imagem(args.image)
         print(f"Rótulo de saída: {rotulo}")
