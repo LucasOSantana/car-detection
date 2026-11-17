@@ -1,0 +1,11 @@
+﻿foto;real;previsto;confianca_%;top3;acertou;observacao
+carro1.jpg;Fiat;Mitsubishi;61.5;Mitsubishi (62%), Ford (23%), Kia (10%);não;"Fiat Mobi; perto; carro preto com reflexo forte de árvores e céu no capô e para-brisa"
+carro10.jpg;BMW;BMW;99.4;BMW (99%), Mercedes-Benz (0%), Nissan (0%);sim;"BMW 320i; perto; capô molhado, vegetação ao fundo"
+carro2.jpg;Volkswagen;Volkswagen;99.8;Volkswagen (100%), Peugeot (0%), Fiat (0%);sim;"VW Polo; perto; contraluz do pôr do sol"
+carro3.jpg;Nissan;Honda;92.9;Honda (93%), Hyundai (3%), Nissan (1%);não;"Nissan Frontier (picape); perto; sol forte, grade cromada"
+carro4.jpg;Citroen;Citroen;96.6;Citroen (97%), Mitsubishi (2%), Ford (1%);sim;"Citroën C3; perto; faróis acesos, fim de tarde"
+carro5.jpg;Honda;Nissan;63.2;Nissan (63%), Kia (12%), Honda (8%);não;"Honda Fit; distância média; sol, emblema pequeno no quadro"
+carro6.jpg;Honda;Honda;30.3;Honda (30%), Volkswagen (22%), Toyota (13%);sim;"Honda HR-V; distância média; sol, reflexo de árvores no para-brisa e capô"
+carro7.jpg;Mercedes-Benz;Mercedes-Benz;93.8;Mercedes-Benz (94%), Volkswagen (2%), Honda (2%);sim;"Mercedes-Benz GLA; perto, foto de cima; fim de tarde"
+carro8.jpg;Audi;Audi;100.0;Audi (100%), Volkswagen (0%), Peugeot (0%);sim;"Audi Q3; perto, foto de cima; reflexo de árvore no capô"
+carro9.jpg;Toyota;Mercedes-Benz;56.8;Mercedes-Benz (57%), Volkswagen (35%), Hyundai (4%);não;"Toyota SW4; perto; reflexo de nuvens no capô, placa coberta"

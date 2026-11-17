@@ -1,0 +1,27 @@
+RELATÓRIO DE CLASSIFICAÇÃO - 15 MARCAS DE AUTOMÓVEIS
+============================================================
+Modelo: efficientnetv2b0, Dropout = 0.0
+Acurácia Top-1 (teste): 0.9716
+Acurácia Top-3 (teste): 0.9945
+
+               precision    recall  f1-score   support
+
+         Audi     0.9867    0.9867    0.9867       225
+          BMW     1.0000    0.9911    0.9955       225
+      Citroen     1.0000    0.9778    0.9888       225
+         Fiat     0.9955    0.9911    0.9933       225
+         Ford     0.9359    0.9733    0.9542       225
+        Honda     1.0000    0.9905    0.9952       211
+      Hyundai     0.9643    0.8060    0.8780       134
+         Jeep     1.0000    1.0000    1.0000       112
+          Kia     0.9596    0.9511    0.9554       225
+Mercedes-Benz     0.9780    0.9867    0.9823       225
+   Mitsubishi     0.9655    0.9438    0.9545        89
+       Nissan     0.9610    0.9867    0.9737       225
+      Peugeot     0.9143    0.9771    0.9446       131
+       Toyota     0.9772    0.9511    0.9640       225
+   Volkswagen     0.9295    0.9956    0.9614       225
+
+     accuracy                         0.9716      2927
+    macro avg     0.9712    0.9672    0.9685      2927
+ weighted avg     0.9722    0.9716    0.9714      2927
